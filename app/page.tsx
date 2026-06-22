@@ -39,7 +39,6 @@ const CONS_METRICS: {
 // Investimento contratado por plataforma (plano de mídia)
 const META_CONTRACTED = contractedInvest("meta");
 const PROG_CONTRACTED = contractedInvest("programatica");
-// CTV não tem spend diário — usamos o valor contratado do plano de mídia
 const CTV_PLAN_INVEST = contractedInvest("ctv");
 
 export default function Overview() {
@@ -53,7 +52,7 @@ export default function Overview() {
     const p = sumProg(f.programatica);
     const c = sumCtv(f.ctv);
 
-    const investimento = m.investimento + p.investimento;
+    const investimento = m.investimento + p.investimento + c.investimento;
     const impressions = m.impressions + p.impressions + c.impressions;
     const clicks = m.clicks + p.clicks + c.clicks;
     // Visualizações de vídeo: ThruPlays (Meta) + vídeos completos (CTV)
@@ -110,22 +109,23 @@ export default function Overview() {
     });
     f.ctv.forEach((r) => {
       const e = ensure(r.date);
-      e.impressions += r.impressions; e.clicks += r.clicks;
-      e.ctv_impressions += r.impressions; e.ctv_clicks += r.clicks;
+      e.investimento += r.investimento; e.impressions += r.impressions; e.clicks += r.clicks;
+      e.ctv_investimento += r.investimento; e.ctv_impressions += r.impressions; e.ctv_clicks += r.clicks;
     });
     const daily = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 
-    // Investimento por plataforma — limitado ao contratado; CTV usa o valor do plano
+    // Investimento por plataforma — realizado (diário) limitado ao contratado
     const split = [
       { name: "Meta Ads", value: capInvest(m.investimento, META_CONTRACTED), color: PLATFORM_COLOR.meta },
-      ...(f.ctv.length > 0
-        ? [{ name: "CTV", value: CTV_PLAN_INVEST, color: PLATFORM_COLOR.ctv }]
-        : []),
+      { name: "CTV", value: capInvest(c.investimento, CTV_PLAN_INVEST), color: PLATFORM_COLOR.ctv },
       { name: "Programática", value: capInvest(p.investimento, PROG_CONTRACTED), color: PLATFORM_COLOR.programatica },
     ].filter((d) => d.value > 0);
     const splitTotal = split.reduce((s, d) => s + d.value, 0);
-    // Investimento realizado total (Meta + Programática), nunca acima do contratado
-    const investimentoCapped = capInvest(m.investimento, META_CONTRACTED) + capInvest(p.investimento, PROG_CONTRACTED);
+    // Investimento realizado total (3 plataformas), nunca acima do contratado
+    const investimentoCapped =
+      capInvest(m.investimento, META_CONTRACTED) +
+      capInvest(c.investimento, CTV_PLAN_INVEST) +
+      capInvest(p.investimento, PROG_CONTRACTED);
 
     const impr = [
       { name: "Meta Ads", value: m.impressions, color: PLATFORM_COLOR.meta },
@@ -143,7 +143,7 @@ export default function Overview() {
       clicks,
       visualizacoes,
       investimentoCapped,
-      cpm: cpm(investimento, m.impressions + p.impressions),
+      cpm: cpm(investimento, m.impressions + p.impressions + c.impressions),
       ctr: ctr(clicks, impressions),
       cpc: cpc(investimento, clicks),
       cpv: cpv(videoInvest, videoViews),
@@ -170,7 +170,7 @@ export default function Overview() {
         volumeDone = rows.reduce((s, r) => s + r.impressions, 0);
       } else {
         volumeDone = data.ctv.reduce((s, r) => s + r.completes, 0);
-        investDone = NaN; // CTV sem dado de spend na base
+        investDone = data.ctv.reduce((s, r) => s + r.investimento, 0);
       }
       return {
         ...g,
@@ -210,7 +210,7 @@ export default function Overview() {
         <Kpi
           label="Investimento"
           value={brl(agg.investimentoCapped)}
-          sub="Meta Ads + Programática"
+          sub="Meta + CTV + Programática"
           accent={C.terracotta}
           icon={<IconTrendUp className="h-5 w-5" />}
         />
@@ -274,24 +274,15 @@ export default function Overview() {
                   color={PLATFORM_COLOR[g.platform]}
                   fmt={compact}
                 />
-                {Number.isFinite(g.investDone) ? (
-                  <GoalBar
-                    label="Investimento"
-                    sublabel="realizado / contratado"
-                    current={g.investDone}
-                    target={g.investTarget}
-                    color={C.terracotta}
-                    fmt={(v) => brl(v)}
-                    cap
-                  />
-                ) : (
-                  <div className="flex items-end">
-                    <p className="text-xs text-ink-soft">
-                      Investimento de CTV não disponível na base — meta de{" "}
-                      {brl(g.investTarget)} contratada.
-                    </p>
-                  </div>
-                )}
+                <GoalBar
+                  label="Investimento"
+                  sublabel="realizado / contratado"
+                  current={g.investDone}
+                  target={g.investTarget}
+                  color={C.terracotta}
+                  fmt={(v) => brl(v)}
+                  cap
+                />
               </div>
             ))}
           </div>
@@ -359,11 +350,6 @@ export default function Overview() {
                         { name: "Programática", color: PLATFORM_COLOR.programatica },
                       ]}
                     />
-                    {m.value === "investimento" && (
-                      <p className="mt-1.5 text-[11px] text-ink-soft">
-                        CTV não possui investimento diário na base (compra contratada).
-                      </p>
-                    )}
                   </div>
                 )}
               </>
@@ -374,7 +360,7 @@ export default function Overview() {
         <Card>
           <SectionTitle
             title="Investimento por plataforma"
-            hint="Realizado (Meta/Programática) + contratado (CTV)"
+            hint="Investimento diário realizado nas 3 plataformas"
           />
           <DonutChart
             data={agg.split}

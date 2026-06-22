@@ -94,3 +94,16 @@ export const IconArrow = (p: P) => (
     <path d="M5 12h14M13 6l6 6-6 6" />
   </svg>
 );
+
+export const IconPlay = (p: P) => (
+  <svg {...base} fill="currentColor" stroke="none" {...p}>
+    <path d="M8 5.2v13.6a1 1 0 0 0 1.5.87l11-6.8a1 1 0 0 0 0-1.74l-11-6.8A1 1 0 0 0 8 5.2Z" />
+  </svg>
+);
+
+export const IconPause = (p: P) => (
+  <svg {...base} fill="currentColor" stroke="none" {...p}>
+    <rect x="6" y="5" width="4" height="14" rx="1.2" />
+    <rect x="14" y="5" width="4" height="14" rx="1.2" />
+  </svg>
+);

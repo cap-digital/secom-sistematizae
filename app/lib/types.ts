@@ -33,6 +33,9 @@ export interface CtvRow {
   thirdQuartile: number;
   completes: number;
   estrategia: string;
+  investimento: number;
+  thumbnail: string;
+  adName: string;
 }
 
 export interface ProgRow {

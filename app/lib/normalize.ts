@@ -8,6 +8,14 @@ const num = (v: unknown): number => {
 
 const str = (v: unknown): string => (v === null || v === undefined ? "" : String(v));
 
+/** Número em formato BR ("2.553,33") ou já numérico → number. */
+const numBr = (v: unknown): number => {
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  if (v === null || v === undefined || v === "") return 0;
+  const n = parseFloat(String(v).trim().replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+};
+
 /** ISO date -> YYYY-MM-DD (data já vem em America/Bahia friendly UTC-3 marker). */
 const day = (v: unknown): string => str(v).slice(0, 10);
 
@@ -45,6 +53,9 @@ export function normalize(raw: RawResponse): Dataset {
     thirdQuartile: num(r["Third quartile"]),
     completes: num(r.Completes),
     estrategia: str(r["Estratégia "]).trim(),
+    investimento: numBr(r.Investimento),
+    thumbnail: str(r.thumbnail),
+    adName: str(r["nome anuncio"]),
   }));
 
   const programatica: ProgRow[] = (raw.programatica ?? []).map((r) => ({

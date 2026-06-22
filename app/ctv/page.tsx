@@ -3,8 +3,8 @@
 import { useMemo } from "react";
 import { useData } from "../lib/DataContext";
 import { useFiltered } from "../lib/useFiltered";
-import { sumCtv, vtr } from "../lib/metrics";
-import { MEDIA_PLAN } from "../lib/mediaPlan";
+import { sumCtv, vtr, cpm, cpc, cpv } from "../lib/metrics";
+import { MEDIA_PLAN, capInvest } from "../lib/mediaPlan";
 import { brl, compact, dec, int, pct, shortDate } from "../lib/format";
 import { C } from "../lib/theme";
 import { Card, Kpi, Loading, LoadError, SectionTitle, EmptyState, Pill } from "../components/ui";
@@ -54,15 +54,22 @@ export default function CtvPage() {
         <Pill tone="neutral">CTV · FastChannels</Pill>
         <span className="text-xs text-ink-soft">
           Plano contratado: {brl(PLAN.investimento)} · meta de {compact(PLAN.volume)} visualizações.
-          Sem dado de investimento diário na base — análise focada em entrega e retenção.
+          Investimento realizado de {brl(t.investimento)} no período selecionado.
         </span>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Kpi label="Impressões" value={compact(t.impressions)} accent={C.teal} sub="exibições em Smart TV" />
+        <Kpi label="Investimento" value={brl(capInvest(t.investimento, PLAN.investimento))} accent={C.terracotta} sub={`CPV ${brl(cpv(t.investimento, t.completes), 2)}`} />
+        <Kpi label="Impressões" value={compact(t.impressions)} accent={C.teal} sub={`CPM ${brl(cpm(t.investimento, t.impressions), 2)}`} />
         <Kpi label="Visualizações 100%" value={compact(t.completes)} accent={C.forest} sub="vídeos completos" />
-        <Kpi label="Taxa de conclusão (VTR)" value={pct(completionRate)} accent={C.terracotta} sub="completos / impressões" />
-        <Kpi label="Cliques" value={int(t.clicks)} accent={C.ochre} sub="interações na TV conectada" />
+        <Kpi label="Taxa de conclusão (VTR)" value={pct(completionRate)} accent={C.ochre} sub="completos / impressões" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="CPV" value={brl(cpv(t.investimento, t.completes), 2)} hint="custo / visualização 100%" />
+        <Stat label="CPM" value={brl(cpm(t.investimento, t.impressions), 2)} hint="custo / mil impressões" />
+        <Stat label="CPC" value={t.clicks ? brl(cpc(t.investimento, t.clicks), 2) : "—"} hint="custo / clique" />
+        <Stat label="Cliques" value={int(t.clicks)} hint="interações na Smart TV" />
       </div>
 
       {/* Funnel + gauge */}
@@ -139,6 +146,18 @@ export default function CtvPage() {
           </p>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="rounded-2xl border border-line bg-paper-soft px-3.5 py-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-soft">
+        {label}
+      </div>
+      <div className="mt-1 text-base font-black font-mono text-ink">{value}</div>
+      {hint && <div className="text-[10px] text-ink-soft">{hint}</div>}
     </div>
   );
 }

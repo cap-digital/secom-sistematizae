@@ -60,6 +60,7 @@ export function sumProg(rows: ProgRow[]): PerfTotals {
 }
 
 export interface CtvTotals {
+  investimento: number;
   impressions: number;
   clicks: number;
   start: number;
@@ -72,6 +73,7 @@ export interface CtvTotals {
 export function sumCtv(rows: CtvRow[]): CtvTotals {
   return rows.reduce(
     (t, r) => ({
+      investimento: t.investimento + r.investimento,
       impressions: t.impressions + r.impressions,
       clicks: t.clicks + r.clicks,
       start: t.start + r.start,
@@ -81,6 +83,7 @@ export function sumCtv(rows: CtvRow[]): CtvTotals {
       completes: t.completes + r.completes,
     }),
     {
+      investimento: 0,
       impressions: 0,
       clicks: 0,
       start: 0,

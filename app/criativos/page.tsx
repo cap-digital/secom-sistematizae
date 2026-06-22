@@ -3,13 +3,14 @@
 import { useMemo, useState } from "react";
 import { useData } from "../lib/DataContext";
 import { useFiltered } from "../lib/useFiltered";
-import { cpm, cpc, ctr, cpv, vtr } from "../lib/metrics";
+import { sumCtv, cpm, cpc, ctr, cpv, vtr } from "../lib/metrics";
 import { brl, compact, int, pct } from "../lib/format";
 import { C, PLATFORM_COLOR } from "../lib/theme";
 import { Card, Loading, LoadError, SectionTitle, EmptyState, Pill, SafeImg, Select } from "../components/ui";
 import { StrategyFilter } from "../components/StrategyFilter";
 import { BubbleChart, HBars } from "../components/charts";
 import { Funnel } from "../components/customViz";
+import { DriveVideo } from "../components/DriveVideo";
 import { IconImage, IconChevron } from "../components/icons";
 
 const STRAT_OPTS = [
@@ -131,9 +132,25 @@ export default function CriativosPage() {
     return list.sort((a, b) => b.impressions - a.impressions);
   }, [f]);
 
+  const ctv = useMemo(() => {
+    if (f.ctv.length === 0) return null;
+    const t = sumCtv(f.ctv);
+    return {
+      name: f.ctv.find((r) => r.adName)?.adName ?? "Criativo CTV",
+      thumbnail: f.ctv.find((r) => r.thumbnail)?.thumbnail ?? "",
+      impressions: t.impressions,
+      completes: t.completes,
+      clicks: t.clicks,
+      investimento: t.investimento,
+      vtr: vtr(t.completes, t.impressions),
+      cpm: cpm(t.investimento, t.impressions),
+      cpv: cpv(t.investimento, t.completes),
+    };
+  }, [f]);
+
   if (loading && !data) return <Loading />;
   if (error && !data) return <LoadError msg={error} onRetry={reload} />;
-  if (creatives.length === 0)
+  if (creatives.length === 0 && !ctv)
     return <EmptyState msg="Sem criativos para o período/estratégia selecionado." />;
 
   const metaCreatives = creatives.filter((c) => c.platform === "meta");
@@ -165,9 +182,44 @@ export default function CriativosPage() {
         <StrategyFilter options={STRAT_OPTS} />
         <span className="flex items-center gap-1.5 text-xs text-ink-soft">
           <IconImage className="h-4 w-4 text-terracotta" />
-          {creatives.length} criativos ativos · CTV não veicula peças individuais
+          {creatives.length + (ctv ? 1 : 0)} criativos ativos · Meta, CTV e Programática
         </span>
       </div>
+
+      {/* CTV — peça em vídeo */}
+      {ctv && (
+        <Card>
+          <SectionTitle
+            title="CTV - Smart TV"
+            hint="Peça em vídeo veiculada nos canais FAST / TV conectada"
+          />
+          <div className="flex flex-col gap-5 lg:flex-row">
+            <div className="shrink-0 lg:w-[34rem]">
+              <DriveVideo
+                url={ctv.thumbnail}
+                className="aspect-video w-full rounded-2xl"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill tone="neutral">CTV - Smart TV</Pill>
+                <Pill tone="good">Vídeo</Pill>
+              </div>
+              <h3 className="mt-2 text-sm font-bold text-ink" title={ctv.name}>
+                {ctv.name}
+              </h3>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <Metric label="Impressões" value={compact(ctv.impressions)} />
+                <Metric label="Visualizações 100%" value={compact(ctv.completes)} />
+                <Metric label="VTR" value={pct(ctv.vtr)} />
+                <Metric label="Investimento" value={brl(ctv.investimento)} />
+                <Metric label="CPM" value={brl(ctv.cpm, 2)} />
+                <Metric label="CPV" value={brl(ctv.cpv, 2)} />
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Feature — Meta creatives */}
       {metaCreatives.length > 0 && (
