@@ -64,6 +64,17 @@ export const TOTAL_CONTRACTED_INVEST = MEDIA_PLAN.reduce(
   0,
 );
 
+/** Investimento contratado de uma plataforma (soma das linhas do plano). */
+export const contractedInvest = (plat: Platform): number =>
+  MEDIA_PLAN.filter((g) => g.platform === plat).reduce(
+    (s, g) => s + g.investimento,
+    0,
+  );
+
+/** Investimento nunca pode exceder o valor contratado. */
+export const capInvest = (realized: number, contracted: number): number =>
+  Math.min(realized, contracted);
+
 /** Período (flight) contratado da campanha de mídia: 18/06 a 03/07. */
 export const CAMPAIGN_START = "2026-06-18";
 export const CAMPAIGN_END = "2026-07-03";

@@ -3,15 +3,14 @@
 import { useMemo, useState } from "react";
 import { useData } from "./lib/DataContext";
 import { useFiltered } from "./lib/useFiltered";
-import { sumMeta, sumProg, sumCtv, cpm, ctr, cpc, cpv, frequency } from "./lib/metrics";
+import { sumMeta, sumProg, sumCtv, cpm, ctr, cpc, cpv } from "./lib/metrics";
 import {
   MEDIA_PLAN,
   TOTAL_CONTRACTED_INVEST,
-  expectedPace,
-  campaignElapsedDays,
-  campaignTotalDays,
+  contractedInvest,
+  capInvest,
 } from "./lib/mediaPlan";
-import { brl, compact, dec, int, pct, shortDate } from "./lib/format";
+import { brl, compact, int, pct, shortDate } from "./lib/format";
 import { C, PLATFORM_COLOR } from "./lib/theme";
 import { Card, Kpi, Loading, LoadError, SectionTitle, Select } from "./components/ui";
 import { StrategyFilter } from "./components/StrategyFilter";
@@ -37,10 +36,17 @@ const CONS_METRICS: {
   { value: "clicks", label: "Cliques", color: C.teal, fmt: int },
 ];
 
+// Investimento contratado por plataforma (plano de mídia)
+const META_CONTRACTED = contractedInvest("meta");
+const PROG_CONTRACTED = contractedInvest("programatica");
+// CTV não tem spend diário — usamos o valor contratado do plano de mídia
+const CTV_PLAN_INVEST = contractedInvest("ctv");
+
 export default function Overview() {
   const { data, loading, error, reload } = useData();
   const f = useFiltered();
   const [consMetric, setConsMetric] = useState("investimento");
+  const [splitPlatform, setSplitPlatform] = useState(false);
 
   const agg = useMemo(() => {
     const m = sumMeta(f.meta);
@@ -50,42 +56,76 @@ export default function Overview() {
     const investimento = m.investimento + p.investimento;
     const impressions = m.impressions + p.impressions + c.impressions;
     const clicks = m.clicks + p.clicks + c.clicks;
-    const reach = m.reach; // alcance único disponível apenas no Meta
+    // Visualizações de vídeo: ThruPlays (Meta) + vídeos completos (CTV)
+    const visualizacoes = m.thruplay + c.completes;
 
     // CPV — custo por visualização de vídeo (Meta Vídeo é a verba com views mensuradas)
     const metaVideo = f.meta.filter((r) => r.estrategia === "Alcance Vídeo");
     const videoInvest = metaVideo.reduce((s, r) => s + r.investimento, 0);
     const videoViews = metaVideo.reduce((s, r) => s + r.video_thruplay, 0);
 
-    const byDate = new Map<
-      string,
-      { date: string; investimento: number; impressions: number; clicks: number }
-    >();
-    const bump = (date: string, inv: number, imp: number, clk: number) => {
-      const e =
-        byDate.get(date) ?? { date, investimento: 0, impressions: 0, clicks: 0 };
-      e.investimento += inv;
-      e.impressions += imp;
-      e.clicks += clk;
-      byDate.set(date, e);
+    // série diária com totais e quebra por plataforma
+    interface DRow {
+      [key: string]: string | number;
+      date: string;
+      label: string;
+      investimento: number;
+      impressions: number;
+      clicks: number;
+      meta_investimento: number;
+      meta_impressions: number;
+      meta_clicks: number;
+      ctv_investimento: number;
+      ctv_impressions: number;
+      ctv_clicks: number;
+      prog_investimento: number;
+      prog_impressions: number;
+      prog_clicks: number;
+    }
+    const byDate = new Map<string, DRow>();
+    const ensure = (date: string): DRow => {
+      let e = byDate.get(date);
+      if (!e) {
+        e = {
+          date,
+          label: shortDate(date),
+          investimento: 0, impressions: 0, clicks: 0,
+          meta_investimento: 0, meta_impressions: 0, meta_clicks: 0,
+          ctv_investimento: 0, ctv_impressions: 0, ctv_clicks: 0,
+          prog_investimento: 0, prog_impressions: 0, prog_clicks: 0,
+        };
+        byDate.set(date, e);
+      }
+      return e;
     };
-    f.meta.forEach((r) => bump(r.date, r.investimento, r.impressions, r.clicks));
-    f.programatica.forEach((r) =>
-      bump(r.date, r.investimento, r.impressions, r.clicks),
-    );
-    f.ctv.forEach((r) => bump(r.date, 0, r.impressions, r.clicks));
-    const daily = [...byDate.values()]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map((d) => ({ ...d, label: shortDate(d.date) }));
+    f.meta.forEach((r) => {
+      const e = ensure(r.date);
+      e.investimento += r.investimento; e.impressions += r.impressions; e.clicks += r.clicks;
+      e.meta_investimento += r.investimento; e.meta_impressions += r.impressions; e.meta_clicks += r.clicks;
+    });
+    f.programatica.forEach((r) => {
+      const e = ensure(r.date);
+      e.investimento += r.investimento; e.impressions += r.impressions; e.clicks += r.clicks;
+      e.prog_investimento += r.investimento; e.prog_impressions += r.impressions; e.prog_clicks += r.clicks;
+    });
+    f.ctv.forEach((r) => {
+      const e = ensure(r.date);
+      e.impressions += r.impressions; e.clicks += r.clicks;
+      e.ctv_impressions += r.impressions; e.ctv_clicks += r.clicks;
+    });
+    const daily = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 
+    // Investimento por plataforma — limitado ao contratado; CTV usa o valor do plano
     const split = [
-      { name: "Meta Ads", value: m.investimento, color: PLATFORM_COLOR.meta },
-      {
-        name: "Programática",
-        value: p.investimento,
-        color: PLATFORM_COLOR.programatica,
-      },
+      { name: "Meta Ads", value: capInvest(m.investimento, META_CONTRACTED), color: PLATFORM_COLOR.meta },
+      ...(f.ctv.length > 0
+        ? [{ name: "CTV", value: CTV_PLAN_INVEST, color: PLATFORM_COLOR.ctv }]
+        : []),
+      { name: "Programática", value: capInvest(p.investimento, PROG_CONTRACTED), color: PLATFORM_COLOR.programatica },
     ].filter((d) => d.value > 0);
+    const splitTotal = split.reduce((s, d) => s + d.value, 0);
+    // Investimento realizado total (Meta + Programática), nunca acima do contratado
+    const investimentoCapped = capInvest(m.investimento, META_CONTRACTED) + capInvest(p.investimento, PROG_CONTRACTED);
 
     const impr = [
       { name: "Meta Ads", value: m.impressions, color: PLATFORM_COLOR.meta },
@@ -101,14 +141,15 @@ export default function Overview() {
       investimento,
       impressions,
       clicks,
-      reach,
+      visualizacoes,
+      investimentoCapped,
       cpm: cpm(investimento, m.impressions + p.impressions),
       ctr: ctr(clicks, impressions),
       cpc: cpc(investimento, clicks),
       cpv: cpv(videoInvest, videoViews),
-      freq: frequency(m.impressions, reach),
       daily,
       split,
+      splitTotal,
       impr,
     };
   }, [f]);
@@ -141,19 +182,16 @@ export default function Overview() {
     });
   }, [data]);
 
+  // Entregue nunca pode exceder o contratado — limita por linha do plano
   const deliveredInvest = goals.reduce(
-    (s, g) => s + (Number.isFinite(g.investDone) ? g.investDone : 0),
+    (s, g) =>
+      s + (Number.isFinite(g.investDone) ? capInvest(g.investDone, g.investTarget) : 0),
     0,
   );
   const contractedKnown = goals
     .filter((g) => Number.isFinite(g.investDone))
     .reduce((s, g) => s + g.investTarget, 0);
-  const pacing = contractedKnown ? deliveredInvest / contractedKnown : 0;
-
-  const today = new Date().toISOString().slice(0, 10);
-  const expected = expectedPace(today);
-  const elapsed = campaignElapsedDays(today);
-  const totalDays = campaignTotalDays();
+  const pacing = contractedKnown ? Math.min(deliveredInvest / contractedKnown, 1) : 0;
 
   if (loading && !data) return <Loading />;
   if (error && !data) return <LoadError msg={error} onRetry={reload} />;
@@ -171,7 +209,7 @@ export default function Overview() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Kpi
           label="Investimento"
-          value={brl(agg.investimento)}
+          value={brl(agg.investimentoCapped)}
           sub="Meta Ads + Programática"
           accent={C.terracotta}
           icon={<IconTrendUp className="h-5 w-5" />}
@@ -183,9 +221,9 @@ export default function Overview() {
           accent={C.forest}
         />
         <Kpi
-          label="Alcance (Meta)"
-          value={compact(agg.reach)}
-          sub={`Frequência média ${dec(agg.freq, 1)}x`}
+          label="Visualizações"
+          value={compact(agg.visualizacoes)}
+          sub="vídeo · Meta ThruPlay + CTV"
           accent={C.ochre}
         />
         <Kpi
@@ -207,7 +245,7 @@ export default function Overview() {
         <RateChip
           label="Ritmo de entrega"
           value={pct(pacing, 0)}
-          hint={`esperado ${pct(expected, 0)} · dia ${elapsed}/${totalDays}`}
+          hint="do investimento contratado"
         />
       </div>
 
@@ -273,31 +311,62 @@ export default function Overview() {
         <Card>
           <SectionTitle
             title="Entrega diária consolidada"
-            hint="Evolução da métrica selecionada por dia (3 plataformas)"
+            hint={
+              splitPlatform
+                ? "Métrica selecionada por dia, separada por plataforma"
+                : "Evolução da métrica selecionada por dia (3 plataformas somadas)"
+            }
             right={
-              <Select
-                value={consMetric}
-                onChange={setConsMetric}
-                options={CONS_METRICS.map((m) => ({ value: m.value, label: m.label }))}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setSplitPlatform((s) => !s)}
+                  className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                    splitPlatform
+                      ? "border-forest bg-forest text-white"
+                      : "border-line bg-paper text-ink-soft hover:border-terracotta/40"
+                  }`}
+                >
+                  Separar por plataforma
+                </button>
+                <Select
+                  value={consMetric}
+                  onChange={setConsMetric}
+                  options={CONS_METRICS.map((m) => ({ value: m.value, label: m.label }))}
+                />
+              </div>
             }
           />
           {(() => {
             const m = CONS_METRICS.find((x) => x.value === consMetric)!;
+            const series = splitPlatform
+              ? [
+                  { key: `meta_${m.value}`, name: "Meta Ads", color: PLATFORM_COLOR.meta, type: "line" as const, fmt: m.fmt },
+                  { key: `ctv_${m.value}`, name: "CTV", color: PLATFORM_COLOR.ctv, type: "line" as const, fmt: m.fmt },
+                  { key: `prog_${m.value}`, name: "Programática", color: PLATFORM_COLOR.programatica, type: "line" as const, fmt: m.fmt },
+                ]
+              : [
+                  { key: m.value, name: m.label, color: m.color, type: "area" as const, fmt: m.fmt },
+                ];
             return (
-              <TrendChart
-                data={agg.daily}
-                xKey="label"
-                series={[
-                  {
-                    key: m.value,
-                    name: m.label,
-                    color: m.color,
-                    type: "area",
-                    fmt: m.fmt,
-                  },
-                ]}
-              />
+              <>
+                <TrendChart data={agg.daily} xKey="label" series={series} />
+                {splitPlatform && (
+                  <div className="mt-3">
+                    <ChartLegend
+                      series={[
+                        { name: "Meta Ads", color: PLATFORM_COLOR.meta },
+                        { name: "CTV", color: PLATFORM_COLOR.ctv },
+                        { name: "Programática", color: PLATFORM_COLOR.programatica },
+                      ]}
+                    />
+                    {m.value === "investimento" && (
+                      <p className="mt-1.5 text-[11px] text-ink-soft">
+                        CTV não possui investimento diário na base (compra contratada).
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
             );
           })()}
         </Card>
@@ -305,11 +374,11 @@ export default function Overview() {
         <Card>
           <SectionTitle
             title="Investimento por plataforma"
-            hint="Distribuição da verba aplicada"
+            hint="Realizado (Meta/Programática) + contratado (CTV)"
           />
           <DonutChart
             data={agg.split}
-            centerValue={brl(agg.investimento)}
+            centerValue={brl(agg.splitTotal)}
             centerLabel="total"
             fmt={(v) => brl(v)}
           />

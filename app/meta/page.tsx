@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useData } from "../lib/DataContext";
 import { useFiltered } from "../lib/useFiltered";
 import { MetaRow } from "../lib/types";
+import { contractedInvest, capInvest } from "../lib/mediaPlan";
 import {
   sumMeta,
   cpm,
@@ -171,7 +172,7 @@ export default function MetaPage() {
       <StrategyFilter options={STRAT_OPTS} />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Kpi label="Investimento" value={brl(t.investimento)} accent={C.terracotta} sub={`CPM ${brl(cpm(t.investimento, t.impressions), 2)}`} />
+        <Kpi label="Investimento" value={brl(capInvest(t.investimento, contractedInvest("meta")))} accent={C.terracotta} sub={`CPM ${brl(cpm(t.investimento, t.impressions), 2)}`} />
         <Kpi label="Impressões" value={compact(t.impressions)} accent={C.forest} sub={`Freq. ${dec(frequency(t.impressions, t.reach), 1)}x`} />
         <Kpi
           label="ThruPlays"

@@ -5,6 +5,7 @@ import { useData } from "../lib/DataContext";
 import { useFiltered } from "../lib/useFiltered";
 import { sumProg, cpm, cpc, ctr } from "../lib/metrics";
 import { ProgRow } from "../lib/types";
+import { contractedInvest, capInvest } from "../lib/mediaPlan";
 import { brl, compact, int, pct, shortDate } from "../lib/format";
 import { C } from "../lib/theme";
 import { Card, Kpi, Loading, LoadError, SectionTitle, EmptyState, SafeImg } from "../components/ui";
@@ -92,7 +93,7 @@ export default function ProgramaticaPage() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Kpi label="Investimento" value={brl(t.investimento)} accent={C.ochre} sub={`CPM ${brl(cpm(t.investimento, t.impressions), 2)}`} />
+        <Kpi label="Investimento" value={brl(capInvest(t.investimento, contractedInvest("programatica")))} accent={C.ochre} sub={`CPM ${brl(cpm(t.investimento, t.impressions), 2)}`} />
         <Kpi label="Impressões" value={compact(t.impressions)} accent={C.forest} sub="display de alcance" />
         <Kpi label="Cliques" value={int(t.clicks)} accent={C.terracotta} sub={`CTR ${pct(ctr(t.clicks, t.impressions))}`} />
         <Kpi label="CPC" value={brl(cpc(t.investimento, t.clicks), 2)} accent={C.teal} sub="custo por clique" />
